@@ -2,147 +2,155 @@ const express = require('express');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// برای خواندن اطلاعات فرم‌های ارسال شده
-app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// حافظه موقت برای ذخیره شیفت‌ها (تا قبل از اتصال کامل به دیتابیس)
-let shifts = [];
+// حافظه موقت برای ذخیره شیفت‌ها (تا بعداً به دیتابیس وصلش کنیم)
+let shifts = [
+  { id: 1, doctor: "دکتر پازل", ward: "اورژانس", date: "۱۴۰۳/۰۷/۰۵", shiftType: "شب" },
+  { id: 2, doctor: "دکتر رضایی", ward: "داخلی", date: "۱۴۰۳/۰۷/۰۶", shiftType: "صبح" }
+];
 
-// صفحه اصلی: شامل فرم ثبت شیفت و جدول شیفت‌های فعال
+// صفحه اصلی: رابط کاربری زیبا و ریسپانسیو
 app.get('/', (req, res) => {
-  const shiftsRows = shifts.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; padding:15px; color:#888;">هنوز هیچ شیفتی ثبت نشده است.</td></tr>`
-    : shifts.map((s, index) => `
-        <tr>
-          <td>${index + 1}</td>
-          <td><strong>${s.name}</strong></td>
-          <td><span class="badge role">${s.role}</span></td>
-          <td>${s.department}</td>
-          <td><span class="badge shift">${s.shiftType}</span></td>
-          <td>${s.date}</td>
-        </tr>
-      `).join('');
-
   res.send(`
     <!DOCTYPE html>
     <html lang="fa" dir="rtl">
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>شیفت‌یار | سامانه جامع کادر درمان</title>
+      <title>شیفت‌یار | مدیریت هوشمند کشیک‌ها</title>
       <style>
-        body { font-family: Tahoma, 'Vazir', sans-serif; background: #f0f4f8; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 900px; margin: auto; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
-        header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 25px; }
-        header h1 { color: #1e3a8a; margin: 0; font-size: 24px; }
-        header p { color: #64748b; margin-top: 5px; font-size: 14px; }
-        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
-        .form-group { display: flex; flex-direction: column; }
-        label { margin-bottom: 6px; font-weight: bold; font-size: 13px; color: #475569; }
-        input, select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; font-family: inherit; }
-        button { background: #0284c7; color: #fff; border: none; padding: 12px 20px; font-size: 15px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 15px; width: 100%; }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", Tahoma, sans-serif; }
+        body { background: #f0f4f8; margin: 0; padding: 20px; color: #1e293b; }
+        .container { max-width: 650px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 25px; }
+        .header h1 { color: #0284c7; margin: 0; font-size: 26px; }
+        .header p { color: #64748b; margin-top: 6px; font-size: 14px; }
+        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { font-size: 18px; margin-top: 0; margin-bottom: 15px; color: #334155; }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 6px; color: #475569; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; }
+        input:focus, select:focus { border-color: #0284c7; }
+        button { width: 100%; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
         button:hover { background: #0369a1; }
-        table { width: 100%; border-collapse: collapse; margin-top: 25px; }
-        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: right; font-size: 13px; }
-        th { background: #f8fafc; color: #334155; }
-        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-        .badge.role { background: #e0f2fe; color: #0369a1; }
-        .badge.shift { background: #fef3c7; color: #b45309; }
+        .shift-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; }
+        .shift-item:last-child { border-bottom: none; }
+        .badge { background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        .empty { text-align: center; color: #94a3b8; font-size: 14px; padding: 20px 0; }
       </style>
     </head>
     <body>
       <div class="container">
-        <header>
-          <h1>🏥 سامانه هوشمند «شیفت‌یار»</h1>
-          <p>مدیریت جامع کشیک و شیفت‌های کادر درمان</p>
-        </header>
+        <div class="header">
+          <h1>🩺 شیفت‌یار</h1>
+          <p>سامانه مدیریت و هماهنگی کشیک‌های پزشکی</p>
+        </div>
 
-        <form action="/add-shift" method="POST">
-          <div class="form-grid">
-            <div class="form-group">
-              <label>نام و نام خانوادگی:</label>
-              <input type="text" name="name" required placeholder="مثال: دکتر پازل">
-            </div>
-
-            <div class="form-group">
-              <label>نقش / رده شغلی:</label>
-              <select name="role" required>
-                <option value="پزشک">پزشک (متخصص / رزیدنت / عمومی)</option>
-                <option value="پرستار">پرستار</option>
-                <option value="سرپرستار / سوپروایزر">سرپرستار / سوپروایزر</option>
-                <option value="ماما">ماما</option>
-                <option value="تکنسین اتاق عمل / بیهوشی">تکنسین اتاق عمل / بیهوشی</option>
-                <option value="فوریت‌های پزشکی (۱۱۵)">فوریت‌های پزشکی (۱۱۵)</option>
-                <option value="بهیار / کمک‌پرستار">بهیار / کمک‌پرستار</option>
-                <option value="کادر اداری / پذیرش">کادر اداری / پذیرش</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>بخش درمانی:</label>
-              <select name="department" required>
-                <option value="اورژانس">اورژانس</option>
-                <option value="اتاق عمل و ریکاوری">اتاق عمل و ریکاوری</option>
-                <option value="مراقبت‌های ویژه (ICU / CCU)">مراقبت‌های ویژه (ICU / CCU)</option>
-                <option value="بخش بستری (داخلی / جراحی / اطفال)">بخش بستری (داخلی / جراحی / اطفال)</option>
-                <option value="بلوک زایمان (زایشگاه)">بلوک زایمان (زایشگاه)</option>
-                <option value="پایگاه ۱۱۵ / پیش‌بیمارستانی">پایگاه ۱۱۵ / پیش‌بیمارستانی</option>
-                <option value="درمانگاه و پذیرش">درمانگاه و پذیرش</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>نوع شیفت:</label>
-              <select name="shiftType" required>
-                <option value="صبح (۰۸:۰۰ الی ۱۴:۰۰)">صبح (۰۸:۰۰ الی ۱۴:۰۰)</option>
-                <option value="عصر (۱۴:۰۰ الی ۲۰:۰۰)">عصر (۱۴:۰۰ الی ۲۰:۰۰)</option>
-                <option value="شب (۲۰:۰۰ الی ۰۸:۰۰)">شب (۲۰:۰۰ الی ۰۸:۰۰)</option>
-                <option value="لانگ / ۲۴ ساعته">لانگ / ۲۴ ساعته</option>
-                <option value="آنکال (آماده‌باش)">آنکال (آماده‌باش)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label>تاریخ شیفت:</label>
-              <input type="text" name="date" required placeholder="مثال: ۱۴۰۳/۰۷/۰۱">
-            </div>
+        <!-- فرم ثبت شیفت جدید -->
+        <div class="card">
+          <h2>➕ ثبت کشیک جدید</h2>
+          <div class="form-group">
+            <label>نام پزشک / رزیدنت / اینترن:</label>
+            <input type="text" id="doctor" placeholder="مثال: دکتر پازل" value="دکتر پازل">
           </div>
+          <div class="form-group">
+            <label>بخش بیمارستان:</label>
+            <input type="text" id="ward" placeholder="مثال: اورژانس، CCU، جراحی">
+          </div>
+          <div class="form-group">
+            <label>تاریخ کشیک:</label>
+            <input type="text" id="date" placeholder="مثال: ۱۴۰۳/۰۷/۱۰">
+          </div>
+          <div class="form-group">
+            <label>نوع شیفت:</label>
+            <select id="shiftType">
+              <option value="صبح">صبح (۷:۳۰ تا ۱۳:۳۰)</option>
+              <option value="عصر">عصر (۱۳:۳۰ تا ۱۹:۳۰)</option>
+              <option value="شب">شب (۱۹:۳۰ تا ۷:۳۰)</option>
+              <option value="۲۴ ساعته">۲۴ ساعته</option>
+            </select>
+          </div>
+          <button onclick="addShift()">ثبت شیفت</button>
+        </div>
 
-          <button type="submit">➕ ثبت این شیفت در سامانه</button>
-        </form>
-
-        <h3 style="margin-top: 35px; color: #1e3a8a;">📋 لیست شیفت‌های فعال کادر درمان</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>نام</th>
-              <th>سمت</th>
-              <th>بخش</th>
-              <th>شیفت</th>
-              <th>تاریخ</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${shiftsRows}
-          </tbody>
-        </table>
+        <!-- لیست شیفت‌ها -->
+        <div class="card">
+          <h2>📋 لیست کشیک‌های فعال</h2>
+          <div id="shiftsList">در حال بارگذاری...</div>
+        </div>
       </div>
+
+      <script>
+        async function fetchShifts() {
+          const res = await fetch('/api/shifts');
+          const data = await res.json();
+          const listDiv = document.getElementById('shiftsList');
+          
+          if (data.length === 0) {
+            listDiv.innerHTML = '<div class="empty">هنوز هیچ شیفتی ثبت نشده است!</div>';
+            return;
+          }
+
+          listDiv.innerHTML = data.map(s => \`
+            <div class="shift-item">
+              <div>
+                <strong>\${s.doctor}</strong> <span style="color: #64748b;">(\${s.ward})</span>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">📅 \${s.date}</div>
+              </div>
+              <span class="badge">\${s.shiftType}</span>
+            </div>
+          \`).join('');
+        }
+
+        async function addShift() {
+          const doctor = document.getElementById('doctor').value.trim();
+          const ward = document.getElementById('ward').value.trim();
+          const date = document.getElementById('date').value.trim();
+          const shiftType = document.getElementById('shiftType').value;
+
+          if (!doctor || !ward || !date) {
+            alert('لطفاً همه فیلدها را پر کنید!');
+            return;
+          }
+
+          await fetch('/api/shifts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doctor, ward, date, shiftType })
+          });
+
+          document.getElementById('ward').value = '';
+          document.getElementById('date').value = '';
+          fetchShifts();
+        }
+
+        fetchShifts();
+      </script>
     </body>
     </html>
   `);
 });
 
-// مسیر دریافت فرم و ثبت شیفت
-app.post('/add-shift', (req, res) => {
-  const { name, role, department, shiftType, date } = req.body;
-  if (name && role && department && shiftType && date) {
-    shifts.unshift({ name, role, department, shiftType, date }); // اضافه کردن به ابتدای لیست
-  }
-  res.redirect('/');
+// API دریافت شیفت‌ها
+app.get('/api/shifts', (req, res) => {
+  res.json(shifts);
+});
+
+// API ذخیره شیفت جدید
+app.post('/api/shifts', (req, res) => {
+  const { doctor, ward, date, shiftType } = req.body;
+  const newShift = {
+    id: Date.now(),
+    doctor,
+    ward,
+    date,
+    shiftType
+  };
+  shifts.push(newShift);
+  res.status(201).json(newShift);
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log('Shiftyar app running on port ' + port);
 });
