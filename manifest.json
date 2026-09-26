@@ -1,12 +1,13 @@
 {
-  "name": "شیفتیار - مدیریت شیفت پزشکی",
+  "name": "شیفتیار",
   "short_name": "شیفتیار",
-  "description": "سامانه هوشمند تنظیم و مدیریت شیفت‌های بالینی و کشیک",
+  "description": "سامانه مدیریت شیفت پزشکی",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0d9488",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icon.svg",
