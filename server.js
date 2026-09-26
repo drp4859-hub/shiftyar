@@ -4,24 +4,40 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// حافظه موقت برای ذخیره شیفت‌ها (تا بعداً به دیتابیس وصلش کنیم)
+// سرو کردن فایل مانیفست برای نصب PWA روی موبایل
+app.get('/manifest.json', (req, res) => {
+  res.sendFile(__dirname + '/manifest.json');
+});
+
+// حافظه موقت برای ذخیره شیفت‌ها
 let shifts = [
   { id: 1, doctor: "دکتر پازل", ward: "اورژانس", date: "۱۴۰۳/۰۷/۰۵", shiftType: "شب" },
   { id: 2, doctor: "دکتر رضایی", ward: "داخلی", date: "۱۴۰۳/۰۷/۰۶", shiftType: "صبح" }
 ];
 
-// صفحه اصلی: رابط کاربری زیبا و ریسپانسیو
+// صفحه اصلی: مجهز به تگ‌های نصب اندروید و آیفون (iOS)
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="fa" dir="rtl">
     <head>
       <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
       <title>شیفت‌یار | مدیریت هوشمند کشیک‌ها</title>
+
+      <!-- تنظیمات اختصاصی PWA برای اندروید -->
+      <link rel="manifest" href="/manifest.json">
+      <meta name="theme-color" content="#0284c7">
+
+      <!-- تنظیمات اختصاصی PWA برای iOS (آیفون) -->
+      <meta name="apple-mobile-web-app-capable" content="yes">
+      <meta name="apple-mobile-web-app-status-bar-style" content="default">
+      <meta name="apple-mobile-web-app-title" content="شیفت‌یار">
+      <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2966/2966327.png">
+
       <style>
-        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", Tahoma, sans-serif; }
-        body { background: #f0f4f8; margin: 0; padding: 20px; color: #1e293b; }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", Tahoma, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: #f0f4f8; margin: 0; padding: 20px; color: #1e293b; user-select: none; }
         .container { max-width: 650px; margin: 0 auto; }
         .header { text-align: center; margin-bottom: 25px; }
         .header h1 { color: #0284c7; margin: 0; font-size: 26px; }
@@ -30,7 +46,7 @@ app.get('/', (req, res) => {
         h2 { font-size: 18px; margin-top: 0; margin-bottom: 15px; color: #334155; }
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 6px; color: #475569; }
-        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; background: #fff; }
         input:focus, select:focus { border-color: #0284c7; }
         button { width: 100%; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
         button:hover { background: #0369a1; }
@@ -47,7 +63,6 @@ app.get('/', (req, res) => {
           <p>سامانه مدیریت و هماهنگی کشیک‌های پزشکی</p>
         </div>
 
-        <!-- فرم ثبت شیفت جدید -->
         <div class="card">
           <h2>➕ ثبت کشیک جدید</h2>
           <div class="form-group">
@@ -74,7 +89,6 @@ app.get('/', (req, res) => {
           <button onclick="addShift()">ثبت شیفت</button>
         </div>
 
-        <!-- لیست شیفت‌ها -->
         <div class="card">
           <h2>📋 لیست کشیک‌های فعال</h2>
           <div id="shiftsList">در حال بارگذاری...</div>
@@ -132,12 +146,10 @@ app.get('/', (req, res) => {
   `);
 });
 
-// API دریافت شیفت‌ها
 app.get('/api/shifts', (req, res) => {
   res.json(shifts);
 });
 
-// API ذخیره شیفت جدید
 app.post('/api/shifts', (req, res) => {
   const { doctor, ward, date, shiftType } = req.body;
   const newShift = {
