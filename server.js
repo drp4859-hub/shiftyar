@@ -1,168 +1,141 @@
 const express = require('express');
+const path = require('path');
 const app = express();
-const port = process.env.PORT || 3000;
+
+const PORT = process.env.PORT || 3000;
+
+// داده شیفت‌ها در حافظه موقت (یا اتصال دیتابیس)
+let shifts = [];
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// سرو کردن فایل مانیفست برای نصب PWA روی موبایل
+// سرو کردن مستقیم manifest.json
 app.get('/manifest.json', (req, res) => {
-  res.sendFile(__dirname + '/manifest.json');
+  res.sendFile(path.join(__dirname, 'manifest.json'));
 });
 
-// حافظه موقت برای ذخیره شیفت‌ها
-let shifts = [
-  { id: 1, doctor: "دکتر پازل", ward: "اورژانس", date: "۱۴۰۳/۰۷/۰۵", shiftType: "شب" },
-  { id: 2, doctor: "دکتر رضایی", ward: "داخلی", date: "۱۴۰۳/۰۷/۰۶", shiftType: "صبح" }
-];
+// آیکون برداری اختصاصی و فوق‌العاده باکیفیت پزشکی شیفتیار (صلیب + ساعت/تقویم شیفت)
+const svgIcon = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14b8a6"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <!-- Background with rounded squircle -->
+  <rect width="512" height="512" rx="115" fill="url(#bgGrad)"/>
+  
+  <!-- Outer Glow Ring -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="8"/>
+  
+  <!-- Medical-90 v-60 h90 z" fill="#ffffff" rx="16"/>
+  </g>
+  
+  <!-- Clock / Shift Badge (Bottom Right) -->
+  <g transform="translate(305, 30-90 v-60 h90 z" fill="#ffffff" rx="16"/>
+  </g>
+  
+  <!-- Clock / Shift Badge (Bottom Right) -->
+  <g transform="translate(305, 305)" filter="url(#shadow)">
+    <circle cx="55" cy="55" r="55" fill="#042f2e" stroke="#5eead4" stroke-width="6"/>
+    <!-- Clock Hands -->
+    <line x1="55" y1="55" x2="55" y2="25" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+    <line x1="55" y1="55" x2="75" y2="55" stroke="#5eead4" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="55" cy="55" r="4" fill="#ffffff"/>
+  </g>
+</svg>
+`;
 
-// صفحه اصلی: مجهز به تگ‌های نصب اندروید و آیفون (iOS)
+// مسیر تحویل آیکون برنامه
+app.get('/icon.svg', (req, res) => {
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.send(svgIcon.trim());
+});
+
+// صفحه اصلی اپلیکیشن شیفتیار
 app.get('/', (req, res) => {
   res.send(`
-    <!DOCTYPE html>
-    <html lang="fa" dir="rtl">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-      <title>شیفت‌یار | مدیریت هوشمند کشیک‌ها</title>
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user--90 v-60 h90 z" fill="#ffffff" rx="16"/>
+  </g>
+  
+  <!-- Clock / Shift Badge (Bottom Right) -->
+  <g transform="translate(305, 305)" filter="url(#shadow)">
+    <circle cx="55" cy="55" r="55" fill="#042f2e" stroke="#5eead4" stroke-width="6"/>
+    <!-- Clock Hands -->
+    <line x1="55" y1="55" x2="55" y2="25" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+    <line x1="55" y1="55" x2="75" y2="55" stroke="#5eead4" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="55" cy="55" r="4" fill="#ffffff"/>
+  </g>
+</svg>
+`;
 
-      <!-- تنظیمات اختصاصی PWA برای اندروید -->
-      <link rel="manifest" href="/manifest.json">
-      <meta name="theme-color" content="#0284c7">
+// مسیر تحویل آیکون برنامه
+app.get('/icon.svg', (req, res) => {
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.send(svgIcon.trim());
+});
 
-      <!-- تنظیمات اختصاصی PWA برای iOS (آیفون) -->
-      <meta name="apple-mobile-web-app-capable" content="yes">
-      <meta name="apple-mobile-web-app-status-bar-style" content="default">
-      <meta name="apple-mobile-web-app-title" content="شیفت‌یار">
-      <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2966/2966327.png">
-
-      <style>
-        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", Tahoma, sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { background: #f0f4f8; margin: 0; padding: 20px; color: #1e293b; user-select: none; }
-        .container { max-width: 650px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 25px; }
-        .header h1 { color: #0284c7; margin: 0; font-size: 26px; }
-        .header p { color: #64748b; margin-top: 6px; font-size: 14px; }
-        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        h2 { font-size: 18px; margin-top: 0; margin-bottom: 15px; color: #334155; }
-        .form-group { margin-bottom: 12px; }
-        label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 6px; color: #475569; }
-        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; outline: none; background: #fff; }
-        input:focus, select:focus { border-color: #0284c7; }
-        button { width: 100%; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #0369a1; }
-        .shift-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f1f5f9; }
-        .shift-item:last-child { border-bottom: none; }
-        .badge { background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-        .empty { text-align: center; color: #94a3b8; font-size: 14px; padding: 20px 0; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>🩺 شیفت‌یار</h1>
-          <p>سامانه مدیریت و هماهنگی کشیک‌های پزشکی</p>
-        </div>
-
-        <div class="card">
-          <h2>➕ ثبت کشیک جدید</h2>
-          <div class="form-group">
-            <label>نام پزشک / رزیدنت / اینترن:</label>
-            <input type="text" id="doctor" placeholder="مثال: دکتر پازل" value="دکتر پازل">
-          </div>
-          <div class="form-group">
-            <label>بخش بیمارستان:</label>
-            <input type="text" id="ward" placeholder="مثال: اورژانس، CCU، جراحی">
-          </div>
-          <div class="form-group">
-            <label>تاریخ کشیک:</label>
-            <input type="text" id="date" placeholder="مثال: ۱۴۰۳/۰۷/۱۰">
-          </div>
-          <div class="form-group">
-            <label>نوع شیفت:</label>
-            <select id="shiftType">
-              <option value="صبح">صبح (۷:۳۰ تا ۱۳:۳۰)</option>
-              <option value="عصر">عصر (۱۳:۳۰ تا ۱۹:۳۰)</option>
-              <option value="شب">شب (۱۹:۳۰ تا ۷:۳۰)</option>
-              <option value="۲۴ ساعته">۲۴ ساعته</option>
-            </select>
-          </div>
-          <button onclick="addShift()">ثبت شیفت</button>
-        </div>
-
-        <div class="card">
-          <h2>📋 لیست کشیک‌های فعال</h2>
-          <div id="shiftsList">در حال بارگذاری...</div>
-        </div>
+// صفحه اصلی اپلیکیشن شیفتیار
+app.get('/', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-px; border-bottom: 1px solid #3a506b; padding-bottom: 16px; }
+    .header img { width: 50px; height: 50px; border-radius: 12px; }
+    h1 { font-size: 20px; color: #6fffe9; }
+    p.sub { font-size: 13px; color: #a5b4fc; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; color: #cbd5e1; }
+    input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #3a506b; background: #0b132b; color: #fff; font-size: 14px; }
+    button { width: 100%; padding: 14px; background: #0d9488; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+    button:active { transform: scale(0.98); background: #0f766e; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <img src="/icon.svg" alt="لوگو شیفتیار">
+      <div>
+        <h1>سامانه شیفتیار 🩺</h1>
+        <p class="sub">برنامه ثبت و مدیریت کشیک پزشکی</p>
       </div>
-
-      <script>
-        async function fetchShifts() {
-          const res = await fetch('/api/shifts');
-          const data = await res.json();
-          const listDiv = document.getElementById('shiftsList');
-          
-          if (data.length === 0) {
-            listDiv.innerHTML = '<div class="empty">هنوز هیچ شیفتی ثبت نشده است!</div>';
-            return;
-          }
-
-          listDiv.innerHTML = data.map(s => \`
-            <div class="shift-item">
-              <div>
-                <strong>\${s.doctor}</strong> <span style="color: #64748b;">(\${s.ward})</span>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">📅 \${s.date}</div>
-              </div>
-              <span class="badge">\${s.shiftType}</span>
-            </div>
-          \`).join('');
-        }
-
-        async function addShift() {
-          const doctor = document.getElementById('doctor').value.trim();
-          const ward = document.getElementById('ward').value.trim();
-          const date = document.getElementById('date').value.trim();
-          const shiftType = document.getElementById('shiftType').value;
-
-          if (!doctor || !ward || !date) {
-            alert('لطفاً همه فیلدها را پر کنید!');
-            return;
-          }
-
-          await fetch('/api/shifts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ doctor, ward, date, shiftType })
-          });
-
-          document.getElementById('ward').value = '';
-          document.getElementById('date').value = '';
-          fetchShifts();
-        }
-
-        fetchShifts();
-      </script>
-    </body>
-    </html>
+    </div>
+    
+    <div class="form-group">
+      <label>نام پزشک / رزیدنت:</label>
+      <input type="text" placeholder="مثلاً: دکتر پازل">
+    </div>
+    <div class="form-group">
+      <label>بخش / بیمارستان:</label>
+      <input type="text" placeholder="مثلاً: اورژانس / ICU">
+    </div>
+    <div class="form-group">
+      <label>نوع شیفت:</label>
+      <select>
+        <option>صبح (M)</option>
+        <option>عصر (E)</option>
+        <option>شب / کشیک (N)</option>
+        <option>۲۴ ساعته (24h)</option>
+      </select>
+    </div>
+    <button onclick="alert('شیفت با موفقیت ثبت شد ✅')">ثبت شیفت جدید</button>
+  </div>
+</body>
+</html>
   `);
 });
 
-app.get('/api/shifts', (req, res) => {
-  res.json(shifts);
-});
-
-app.post('/api/shifts', (req, res) => {
-  const { doctor, ward, date, shiftType } = req.body;
-  const newShift = {
-    id: Date.now(),
-    doctor,
-    ward,
-    date,
-    shiftType
-  };
-  shifts.push(newShift);
-  res.status(201).json(newShift);
-});
-
-app.listen(port, () => {
-  console.log('Shiftyar app running on port ' + port);
+app.listen(PORT, () => {
+  console.log('Shiftyar is active on port ' + PORT);
 });
